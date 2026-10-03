@@ -1,0 +1,96 @@
+name: Sync published release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android analyzer
+        uses: android-actions/setup-android@v3
+
+      - name: Download Android SDK command line tools
+        shell: bash
+        run: |
+          sdkmanager "platform-tools"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+
+      - name: Verify release APK and update manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+            echo "Release tag must look like v0.4.8"
+            exit 1
+          fi
+
+          mapfile -t assets < <(gh release view "$TAG" --json assets --jq '.assets[] | select(.name | endswith(".apk")) | .name')
+          if [ "${#assets[@]}" -ne 1 ]; then
+            echo "Exactly one APK asset is required. Found: ${assets[*]-none}"
+            exit 1
+          fi
+
+          mkdir -p dist
+          gh release download "$TAG" --pattern "${assets[0]}" --dir dist
+          APK="dist/${assets[0]}"
+          test -s "$APK"
+
+          APP_ID="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK")"
+          VERSION_CODE="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-code "$APK")"
+          VERSION_NAME="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-name "$APK")"
+          EXPECTED_NAME="${TAG#v}"
+
+          test "$APP_ID" = "com.aba04.debtledger"
+          test "$VERSION_NAME" = "$EXPECTED_NAME"
+          [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]
+
+          SHA256="$(sha256sum "$APK" | awk '{print $1}')"
+          APK_URL="https://github.com/aba04-stack/DebtLedger-Updates/releases/download/$TAG/${assets[0]}"
+
+          python3 - "$VERSION_CODE" "$VERSION_NAME" "$APK_URL" "$SHA256" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          version_code, version_name, apk_url, sha256 = sys.argv[1:]
+          data = {
+              "enabled": True,
+              "versionCode": int(version_code),
+              "versionName": version_name,
+              "apkUrl": apk_url,
+              "sha256": sha256.lower(),
+              "mandatory": False,
+              "notes": f"DebtLedger {version_name}: опубликованный проверенный релиз."
+          }
+          Path("update.json").write_text(
+              json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8"
+          )
+          PY
+
+      - name: Commit manifest
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          git diff --cached --quiet && echo "Manifest already current." && exit 0
+          git commit -m "Publish update manifest for ${GITHUB_REF_NAME}"
+          git push
