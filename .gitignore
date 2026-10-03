@@ -1,0 +1,5 @@
+# Release APKs are GitHub Release assets, not source files.
+*.apk
+*.aab
+*.jks
+*.keystore
