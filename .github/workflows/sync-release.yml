@@ -21,11 +21,12 @@ jobs:
       - name: Install Android analyzer
         uses: android-actions/setup-android@v3
 
-      - name: Download Android SDK command line tools
+      - name: Install build tools
         shell: bash
         run: |
-          sdkmanager "platform-tools"
-          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          sdkmanager "build-tools;35.0.0"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apkanalyzer"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
       - name: Verify release APK and update manifest
         env:
@@ -51,14 +52,20 @@ jobs:
           APK="dist/${assets[0]}"
           test -s "$APK"
 
-          APP_ID="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK")"
-          VERSION_CODE="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-code "$APK")"
-          VERSION_NAME="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-name "$APK")"
+          APKANALYZER="$ANDROID_HOME/build-tools/35.0.0/apkanalyzer"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+          "$APKSIGNER" verify --verbose "$APK"
+          APP_ID="$("$APKANALYZER" manifest application-id "$APK")"
+          VERSION_CODE="$("$APKANALYZER" manifest version-code "$APK")"
+          VERSION_NAME="$("$APKANALYZER" manifest version-name "$APK")"
           EXPECTED_NAME="${TAG#v}"
 
           test "$APP_ID" = "com.aba04.debtledger"
           test "$VERSION_NAME" = "$EXPECTED_NAME"
           [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]
+          EXPECTED_ASSET="DebtLedger-$VERSION_NAME.apk"
+          test "${assets[0]}" = "$EXPECTED_ASSET"
 
           SHA256="$(sha256sum "$APK" | awk '{print $1}')"
           APK_URL="https://github.com/aba04-stack/DebtLedger-Updates/releases/download/$TAG/${assets[0]}"
