@@ -15,7 +15,6 @@ on:
       - RELEASE.md
       - README.md
       - .github/workflows/validate-update.yml
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,12 +33,12 @@ jobs:
           from pathlib import Path
 
           data = json.loads(Path("update.json").read_text(encoding="utf-8"))
-          required = ["versionCode", "versionName", "apkUrl", "sha256", "mandatory", "notes"]
+          required = ["enabled", "versionCode", "versionName", "apkUrl", "sha256", "mandatory", "notes"]
           missing = [k for k in required if k not in data]
           if missing:
               raise SystemExit(f"Missing fields: {missing}")
 
-          if not isinstance(data["versionCode"], int) or data["versionCode"] <= 0:
+          if not isinstance(data["enabled"], bool):\n              raise SystemExit("enabled must be boolean")\n          if not isinstance(data["versionCode"], int) or data["versionCode"] <= 0:
               raise SystemExit("versionCode must be a positive integer")
           if not isinstance(data["versionName"], str) or not data["versionName"].strip():
               raise SystemExit("versionName must be non-empty")
@@ -47,7 +46,7 @@ jobs:
               raise SystemExit("apkUrl must use HTTPS")
           if not re.fullmatch(r"[0-9a-fA-F]{64}", str(data["sha256"])):
               raise SystemExit("sha256 must be exactly 64 hexadecimal characters")
-          if not isinstance(data["mandatory"], bool):
+          if data["enabled"] and str(data["sha256"]).lower() == "0" * 64:\n              raise SystemExit("enabled manifest cannot use a zero SHA-256")\n          if not isinstance(data["mandatory"], bool):
               raise SystemExit("mandatory must be boolean")
           if not isinstance(data["notes"], str):
               raise SystemExit("notes must be a string")
