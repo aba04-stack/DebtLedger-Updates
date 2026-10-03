@@ -1,0 +1,8 @@
+{
+  "versionCode": 12,
+  "versionName": "0.4.7",
+  "apkUrl": "https://github.com/aba04-stack/DebtLedger-Updates/releases/download/v0.4.7/DebtLedger-0.4.7.apk",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "mandatory": false,
+  "notes": "Канал обновлений DebtLedger инициализирован. Для первого публичного релиза asset APK и реальный SHA-256 должны быть опубликованы вместе с этим manifest."
+}
