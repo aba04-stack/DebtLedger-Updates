@@ -8,6 +8,7 @@ on:
       - RELEASE.md
       - README.md
       - .github/workflows/validate-update.yml
+      - .github/workflows/sync-release.yml
   pull_request:
     branches: [ main ]
     paths:
